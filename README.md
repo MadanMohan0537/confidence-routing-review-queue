@@ -102,6 +102,22 @@ docs/             methods, limitations, and backlog
 .github/          CI across Python 3.11–3.13
 ```
 
+## Deployment
+
+Cloudflare Workers is the planned deployment target. This repository has no Worker, no `wrangler.toml`, and no workers.dev URL, so it is not deployed.
+
+The deploy command, once a Worker exists, is:
+
+```bash
+npx wrangler deploy
+```
+
+Still needed before that command can run:
+
+- a `wrangler.toml`
+- a Worker entry point
+- for this Python package, either Cloudflare Python Workers or a JavaScript/TypeScript port
+
 ## License
 
 MIT
