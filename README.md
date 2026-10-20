@@ -1,31 +1,44 @@
-# QueueCal
+# Confidence Routing and Review-Queue Economics (QueueCal)
 
-[![CI](https://github.com/MadanMohan0537/queuecal/actions/workflows/ci.yml/badge.svg)](https://github.com/MadanMohan0537/queuecal/actions/workflows/ci.yml)
+[![CI](https://github.com/MadanMohan0537/confidence-routing-review-queue/actions/workflows/ci.yml/badge.svg)](https://github.com/MadanMohan0537/confidence-routing-review-queue/actions/workflows/ci.yml)
 
-QueueCal converts model confidence into an operations decision. It calibrates receipt-field scores, sweeps automation thresholds, prices auto-approved errors and human review, then tests whether the resulting review queue can actually meet its SLA during a traffic surge.
+**Decide which AI predictions to auto-approve and which to send to human reviewers: calibrate confidence, price errors against review time, and check whether the review queue still meets its SLA during a traffic surge.**
 
-> **Project Lab traceability:** catalog Project 08, originally “Confidence Routing and Threshold Economics.” QueueCal is the product name; this metadata prevents the renamed idea from being built twice.
+*Previously named `queuecal`. The Python package and CLI are still called `queuecal`. Note: this routes field predictions to **human reviewers**; it is not an LLM model router.*
 
-## Why it exists
+---
 
-Teams often choose a confidence threshold by feel. A higher threshold reduces automated errors but increases reviews; a threshold that is economically attractive in aggregate can still collapse the queue during a surge. QueueCal makes the cost table, capacity assumptions, and failure denominators visible.
+## The problem
 
-## Implemented scope
+Teams that automate document or data extraction usually pick a confidence threshold by feel. A higher threshold means fewer automated errors but more human reviews. A threshold that looks cheapest on normal traffic can still overwhelm the review team during a surge, so the SLA can fail when volume is highest.
 
-- Deterministic synthetic receipt fields with confidence, truth labels, error costs, arrivals, service times, and priorities.
-- Histogram calibration and expected calibration error.
-- Threshold sweep with automation rate, auto-approved errors, expected error cost, reviewer hours, and combined cost.
-- Priority review-queue preview.
-- Deterministic multi-reviewer queue simulation with SLA breaches, maximum wait, and utilization.
-- Markdown and JSON reports.
-- **P1 capacity-aware routing:** choose a candidate threshold under a queue-breach constraint and compare it with the economic-only baseline during a three-times traffic surge.
-- Service-time sensitivity at 0.75×, 1×, and 1.5×.
+## Who it is for
 
-Real OCR/VLM extraction, a hosted review console, per-field optimization, delayed-label joins, authentication, and production workflow integration are planned—not implemented.
+Product and operations managers running human-in-the-loop AI workflows (for example receipt or invoice extraction), and the engineers who set automation thresholds.
+
+## Approach
+
+1. **Calibrate** raw confidence scores with histogram calibration and report expected calibration error. Raw confidence in this fixture is an overconfident score. Calibration is fit on the same rows it scores, so the calibrated error is in-sample.
+2. **Sweep thresholds** and report automation rate, auto-approved errors, observed error cost, reviewer hours, and combined cost. Observed error cost is the sum of per-field costs on auto-approved fields whose label is wrong. Those costs are explicit inputs on each prediction. The demo fills them with synthetic defaults, and the CLI accepts report paths only.
+3. **Simulate the review queue** with multiple reviewers, priorities, SLA breaches, maximum wait, and utilization.
+4. **Choose a capacity-aware threshold** that prefers candidates with a simulated SLA breach rate of at most 5%, and compare it with the lowest-cost choice during a 3× surge. When every candidate is above 5%, the choice is the lowest breach rate, then the lowest total cost.
+
+## What exists today
+
+- Deterministic synthetic receipt fields (merchant, date, and total) with confidence, truth labels, error costs, arrivals, service times, and priorities.
+- Histogram calibration, expected calibration error, a threshold sweep, a priority-queue preview, and a multi-reviewer queue simulation.
+- A capacity-aware routing experiment with service-time sensitivity at 0.75×, 1×, and 1.5×.
+- Markdown and JSON reports, and unit and experiment tests in CI on Python 3.11–3.13.
+
+**Planned, not implemented:** real OCR/VLM extraction, a hosted review console, per-field thresholds, delayed-label joins, authentication, and production workflow integration.
 
 ## Quick start
 
+Requires Python 3.11 or newer.
+
 ```bash
+git clone https://github.com/MadanMohan0537/confidence-routing-review-queue.git
+cd confidence-routing-review-queue
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
@@ -38,7 +51,7 @@ Run tests:
 python -m unittest discover -s tests -v
 ```
 
-No API key, model download, network request, paid service, or private data is required.
+The `queuecal` command uses local synthetic data only. It needs no API key, model download, paid service, or private data, and it makes no network requests.
 
 ## Workflow
 
@@ -51,21 +64,33 @@ flowchart TD
     E --> F[Decision report]
 ```
 
-## P1 experiment
+## Surge experiment
 
-The frozen experiment first selects the lowest-cost threshold on normal traffic. It then triples the arrival rate while keeping the predictions fixed and compares that threshold with capacity-aware choices constrained to at most five-percent simulated SLA breaches. The report records review denominator, breach count and rate, wait, utilization, total cost, and a service-time sensitivity sweep.
+The experiment first picks the lowest-cost threshold on normal traffic. It then triples the arrival rate, keeping confidence, labels, costs, service times, and priorities fixed, and compares that threshold with a capacity-aware choice. The capacity-aware rule keeps candidates whose simulated SLA breach rate is at most 5% and picks the lowest total cost among them. On the bundled fixture every candidate is above 5%, so the tool returns the lowest breach rate, then the lowest cost, using the same queue-result fields as any other choice.
 
-Acceptance is deliberately modest: capacity-aware routing must reduce the breach count when the economic-only threshold overloads the queue, while exposing any added error cost. If every candidate violates the SLA, QueueCal selects the least-bad breach rate and labels the scenario infeasible. This validates simulator behavior, not production performance.
+The JSON report includes the review denominator, breach count and rate, maximum wait, reviewer utilization, total cost, and expected calibration error, plus the service-time sweep. The markdown report includes the threshold curve (automation rate, auto-approved error count, observed error cost, reviewer hours, and total cost), the surge comparison (reviews, breach count and rate, maximum wait, and total cost), and that same sweep. Sweep rows are the threshold, breach rate, and total cost at 0.75×, 1×, and 1.5× service time.
+
+The bundled demo test checks that capacity-aware routing has a lower breach count than the cost-only threshold. The 5% cap is the selection rule, and this fixture falls through it. Both reports show total cost for the two choices, and the markdown threshold curve shows observed error cost at each threshold. This validates simulator behavior, not production performance.
+
+## Metrics it reports
+
+All figures come from the synthetic fixture.
+
+- JSON: expected calibration error, SLA breach count and rate, maximum wait, reviewer utilization, and total cost.
+- Markdown threshold curve: automation rate, auto-approved error count, observed error cost, reviewer hours, and total cost.
+- Markdown surge table: review count, breach count and rate, maximum wait, and total cost.
+
+Observed error cost is the summed `error_cost` of auto-approved fields that are labeled incorrect. Review labor is priced with the hourly-rate argument on the sweep and the simulator. The two are added into total cost.
 
 ## Design choices
 
-- A global threshold is shipped first because it is easier to explain; per-field thresholds remain planned.
-- Error costs are business-owned inputs instead of hidden model constants.
-- Calibration is reported before routing because raw confidence is not probability.
-- Capacity is evaluated under surge conditions rather than average demand.
-- Synthetic fixtures make the workflow reproducible but prevent claims about real extraction accuracy.
+- One global threshold first, because it is easier to explain; per-field thresholds are planned.
+- Error costs are explicit per-field values, and review labor uses an hourly-rate argument. The demo uses synthetic defaults. The CLI arguments are the JSON and Markdown report paths.
+- Calibration is reported before routing. Histogram calibration is fit on the same rows used to compute expected calibration error, so that figure is in-sample.
+- Capacity is tested under a 3× arrival surge, with the cost-only threshold chosen on normal traffic.
+- Synthetic fixtures make the workflow reproducible. Published numbers are properties of this generator.
 
-See [the method and limitations](docs/METHOD.md), [synthetic-data provenance](data/README.md), and [the rigorous feature backlog](docs/BACKLOG.md).
+See [method and limitations](docs/METHOD.md), [synthetic-data provenance](data/README.md), and [backlog](docs/BACKLOG.md).
 
 ## Repository structure
 
@@ -73,8 +98,8 @@ See [the method and limitations](docs/METHOD.md), [synthetic-data provenance](da
 queuecal/         calibration, economics, queue simulation, reporting
 tests/            deterministic unit and experiment tests
 data/             synthetic-data provenance
-docs/             methods, limitations, and evidence-driven backlog
-.github/           CI across Python 3.11–3.13
+docs/             methods, limitations, and backlog
+.github/          CI across Python 3.11–3.13
 ```
 
 ## License
