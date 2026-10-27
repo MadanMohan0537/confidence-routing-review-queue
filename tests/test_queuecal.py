@@ -2,6 +2,13 @@ import unittest
 from dataclasses import replace
 
 from queuecal.calibration import calibrate, calibration_bins, expected_calibration_error
+from queuecal.consistency import (
+    AmountPrediction,
+    compare_correlated_review,
+    inconsistent_documents,
+    review_ids,
+    synthetic_amount_receipts,
+)
 from queuecal.data import synthetic_receipts
 from queuecal.demo import THRESHOLDS, run_demo
 from queuecal.economics import economic_choice, sweep, threshold_point
@@ -84,6 +91,57 @@ class QueueCalTests(unittest.TestCase):
     def test_demo_exports_markdown(self):
         self.assertIn("## Surge comparison", run_demo()["markdown"])
 
+    def test_correlated_fixture_is_reproducible(self):
+        self.assertEqual(synthetic_amount_receipts(), synthetic_amount_receipts())
+
+    def test_seeded_arithmetic_failures_are_detected(self):
+        self.assertEqual(4, len(inconsistent_documents(synthetic_amount_receipts())))
+
+    def test_group_rule_catches_high_confidence_errors(self):
+        result = compare_correlated_review(synthetic_amount_receipts())
+        self.assertEqual(0, result.baseline_caught_errors)
+        self.assertEqual(4, result.grouped_caught_errors)
+
+    def test_group_rule_reports_workload_tradeoff(self):
+        result = compare_correlated_review(synthetic_amount_receipts())
+        self.assertEqual(12, result.extra_field_reviews)
+        self.assertEqual(3.0, result.added_reviews_per_caught_error)
+        self.assertTrue(result.acceptance_passed)
+
+    def test_group_rule_has_no_false_positive_fixture_flags(self):
+        self.assertEqual(
+            0,
+            compare_correlated_review(synthetic_amount_receipts()).false_positive_group_reviews,
+        )
+
+    def test_incomplete_document_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "missing fields"):
+            inconsistent_documents(synthetic_amount_receipts()[:-1])
+
+    def test_tolerance_prevents_rounding_noise_review(self):
+        rows = synthetic_amount_receipts()
+        first = rows[0]
+        noisy = [
+            AmountPrediction(**{**row.__dict__, "value": row.value + 0.01})
+            if row == first
+            else row
+            for row in rows
+        ]
+        self.assertNotIn(
+            first.item_id,
+            inconsistent_documents(noisy, absolute_tolerance=0.02),
+        )
+
+    def test_review_policy_validates_threshold(self):
+        with self.assertRaises(ValueError):
+            review_ids(synthetic_amount_receipts(), 1.1, grouped=True)
+
+    def test_demo_exports_correlated_review_evidence(self):
+        report = run_demo()
+        self.assertTrue(report["correlated_review"].acceptance_passed)
+        self.assertIn("## Correlated amount-field review", report["markdown"])
+
 
 if __name__ == "__main__":
     unittest.main()
+

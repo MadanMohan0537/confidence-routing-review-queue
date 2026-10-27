@@ -1,6 +1,6 @@
 # QueueCal
 
-[![CI](https://github.com/MadanMohan0537/queuecal/actions/workflows/ci.yml/badge.svg)](https://github.com/MadanMohan0537/queuecal/actions/workflows/ci.yml)
+[![CI](https://github.com/MadanMohan0537/confidence-routing-review-queue/actions/workflows/ci.yml/badge.svg)](https://github.com/MadanMohan0537/confidence-routing-review-queue/actions/workflows/ci.yml)
 
 QueueCal converts model confidence into an operations decision. It calibrates receipt-field scores, sweeps automation thresholds, prices auto-approved errors and human review, then tests whether the resulting review queue can actually meet its SLA during a traffic surge.
 
@@ -20,6 +20,7 @@ Teams often choose a confidence threshold by feel. A higher threshold reduces au
 - Markdown and JSON reports.
 - **P1 capacity-aware routing:** choose a candidate threshold under a queue-breach constraint and compare it with the economic-only baseline during a three-times traffic surge.
 - Service-time sensitivity at 0.75×, 1×, and 1.5×.
+- **P2 correlated-field review:** apply a subtotal + tax = total consistency rule, route the complete amount group on failure, and report extra field reviews per additional error caught.
 
 Real OCR/VLM extraction, a hosted review console, per-field optimization, delayed-label joins, authentication, and production workflow integration are planned—not implemented.
 
@@ -48,7 +49,8 @@ flowchart TD
     B --> C[Threshold cost sweep]
     C --> D[Review queue]
     D --> E[Capacity and SLA simulation]
-    E --> F[Decision report]
+    E --> F[Correlated-field check]
+    F --> G[Decision report]
 ```
 
 ## P1 experiment
@@ -57,6 +59,18 @@ The frozen experiment first selects the lowest-cost threshold on normal traffic.
 
 Acceptance is deliberately modest: capacity-aware routing must reduce the breach count when the economic-only threshold overloads the queue, while exposing any added error cost. If every candidate violates the SLA, QueueCal selects the least-bad breach rate and labels the scenario infeasible. This validates simulator behavior, not production performance.
 
+## P2 experiment
+
+The frozen amount fixture contains 12 receipts and four deliberately inconsistent
+subtotal/tax/total groups. Each seeded bad total has high confidence, so an
+independent 0.80 threshold misses it. QueueCal applies an absolute-tolerance
+arithmetic rule and routes all three related fields when the rule fails.
+
+The predeclared acceptance test requires all four seeded errors to be caught,
+zero false-positive document flags, and no more than three added field reviews
+per additional caught error. The report preserves both the benefit and the
+workload denominator; it does not treat more routing as free.
+
 ## Design choices
 
 - A global threshold is shipped first because it is easier to explain; per-field thresholds remain planned.
@@ -64,6 +78,7 @@ Acceptance is deliberately modest: capacity-aware routing must reduce the breach
 - Calibration is reported before routing because raw confidence is not probability.
 - Capacity is evaluated under surge conditions rather than average demand.
 - Synthetic fixtures make the workflow reproducible but prevent claims about real extraction accuracy.
+- Arithmetic consistency is a deterministic signal, not proof of which field is wrong; the whole group stays in human review.
 
 See [the method and limitations](docs/METHOD.md), [synthetic-data provenance](data/README.md), and [the rigorous feature backlog](docs/BACKLOG.md).
 
@@ -80,3 +95,4 @@ docs/             methods, limitations, and evidence-driven backlog
 ## License
 
 MIT
+

@@ -14,7 +14,12 @@ def main() -> None:
     args = parser.parse_args()
     report = run_demo()
     markdown = report.pop("markdown")
-    serializable = {**report, "baseline": asdict(report["baseline"]), "capacity_aware": asdict(report["capacity_aware"])}
+    serializable = {
+        **report,
+        "baseline": asdict(report["baseline"]),
+        "capacity_aware": asdict(report["capacity_aware"]),
+        "correlated_review": asdict(report["correlated_review"]),
+    }
     with open(args.json, "w", encoding="utf-8") as handle:
         json.dump(serializable, handle, indent=2, sort_keys=True)
     with open(args.markdown, "w", encoding="utf-8") as handle:
@@ -24,3 +29,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
