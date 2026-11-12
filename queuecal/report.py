@@ -10,6 +10,7 @@ def markdown_report(
     capacity: QueueResult,
     sensitivity: list[dict],
     correlated: ConsistencyComparison,
+    delayed: dict[str, dict],
 ) -> str:
     lines = ["# QueueCal threshold report", "", "## Threshold curve", "", "| Threshold | Automation | Auto errors | Error cost | Reviewer hours | Total cost |", "|---:|---:|---:|---:|---:|---:|"]
     for point in points:
@@ -36,6 +37,28 @@ def markdown_report(
         f"- Added reviews per additional caught error: {ratio}",
         f"- False-positive group reviews: {correlated.false_positive_group_reviews}",
         f"- Predeclared acceptance passed: {correlated.acceptance_passed}",
+        "",
+        "## Delayed-label audit",
+        "",
+        "| Window | Labels | Error labels | Selected threshold | Full-truth regret | Status |",
+        "|---:|---:|---:|---:|---:|---|",
+    ]
+    for name, audit in delayed.items():
+        threshold = (
+            f"{audit['observed_threshold']:.2f}"
+            if audit["observed_threshold"] is not None else "not selected"
+        )
+        regret = (
+            f"${audit['threshold_regret']:.2f}"
+            if audit["threshold_regret"] is not None else "not computed"
+        )
+        lines.append(
+            f"| {name.removeprefix('day_')} days | "
+            f"{audit['labels_received']}/{audit['decision_denominator']} | "
+            f"{audit['errors_observed']}/{audit['error_denominator']} | "
+            f"{threshold} | {regret} | {audit['status']} |"
+        )
+    lines += [
         "",
         "> Synthetic data and assumed costs demonstrate the decision method; they do not establish production performance.",
     ]

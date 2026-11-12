@@ -5,6 +5,7 @@ from dataclasses import replace
 from .calibration import calibrate, expected_calibration_error
 from .consistency import compare_correlated_review, synthetic_amount_receipts
 from .data import synthetic_receipts
+from .delayed import delayed_label_audit, synthetic_corrections
 from .economics import economic_choice, sweep
 from .queue import capacity_aware_choice, simulate_queue
 from .report import markdown_report
@@ -29,6 +30,13 @@ def run_demo() -> dict:
         result = capacity_aware_choice(variant, THRESHOLDS, reviewers=2)
         sensitivity.append({"multiplier": multiplier, "threshold": result.threshold, "breach_rate": result.breach_rate, "total_cost": result.total_cost})
     correlated = compare_correlated_review(synthetic_amount_receipts())
+    labels = synthetic_corrections(calibrated)
+    delayed = {
+        f"day_{day}": delayed_label_audit(
+            calibrated, labels, THRESHOLDS, window_days=day
+        )
+        for day in (1, 7, 14)
+    }
     return {
         "records": len(calibrated),
         "raw_ece": expected_calibration_error(raw),
@@ -40,6 +48,9 @@ def run_demo() -> dict:
         "sensitivity": sensitivity,
         "queue_preview": review_queue(calibrated, capacity.threshold)[:10],
         "correlated_review": correlated,
-        "markdown": markdown_report(points, baseline, capacity, sensitivity, correlated),
+        "delayed_label_audit": delayed,
+        "markdown": markdown_report(
+            points, baseline, capacity, sensitivity, correlated, delayed
+        ),
     }
 

@@ -6,11 +6,20 @@ The P1 simulator assigns arrivals to the earliest available reviewer and records
 
 The P2 experiment evaluates document-level dependencies separately from confidence. For each complete subtotal, tax, and total group, QueueCal checks whether `abs(subtotal + tax - total) > 0.02`. A failure adds the entire three-field group to review, unioned with ordinary low-confidence routing. The frozen fixture has 12 documents, four high-confidence bad totals, and two unrelated low-confidence fields. Acceptance was declared before running the fixture: catch all four bad totals, flag no correct document, and add at most three field reviews per additional caught error.
 
+The delayed-label audit joins correction events to immutable `item:field`
+decision IDs and rejects duplicate, unknown, or invalid events. At each declared
+window it records labels received over decisions, errors observed over eventual
+errors, the threshold selected from visible labels, and that policy's cost on
+eventual full truth. Regret is the latter cost minus the oracle full-truth cost.
+With no visible labels the audit returns `INSUFFICIENT_LABELS` and does not
+manufacture a threshold or regret value.
+
 Limitations:
 
 - The data, confidence scores, costs, arrivals, and reviewer times are synthetic.
 - Histogram calibration on the same fixture is illustrative and optimistic; production work needs held-out or cross-validated calibration.
-- Observed correctness is treated as immediate and complete; delayed labels are planned.
+- The delayed-label fixture has eventual truth, while production systems rarely do; real regret remains unidentified until labels arrive.
+- Correction observation is selective. Reporting coverage exposes the gap but does not statistically repair selection bias.
 - The queue is deterministic and ignores breaks, skills, abandonment, and correlated document handling.
 - The amount rule covers one currency and assumes taxes are represented additively; discounts, tips, multiple tax lines, OCR normalization, and currency conversion are out of scope.
 - A consistency failure localizes a document group, not the erroneous field. Human review remains required.

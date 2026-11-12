@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "queuecal"
-version = "0.1.0"
+version = "0.2.0"
 description = "Calibrated confidence routing with reviewer-capacity economics"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -17,3 +17,4 @@ queuecal = "queuecal.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["queuecal*"]
+

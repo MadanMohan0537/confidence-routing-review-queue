@@ -21,8 +21,9 @@ Teams often choose a confidence threshold by feel. A higher threshold reduces au
 - **P1 capacity-aware routing:** choose a candidate threshold under a queue-breach constraint and compare it with the economic-only baseline during a three-times traffic surge.
 - Service-time sensitivity at 0.75×, 1×, and 1.5×.
 - **P2 correlated-field review:** apply a subtotal + tax = total consistency rule, route the complete amount group on failure, and report extra field reviews per additional error caught.
+- **Delayed-label audit:** join corrections by stable decision ID, expose correction-window and error-observation denominators, and compute the full-truth cost regret of a threshold selected from partial labels.
 
-Real OCR/VLM extraction, a hosted review console, per-field optimization, delayed-label joins, authentication, and production workflow integration are planned—not implemented.
+Real OCR/VLM extraction, a hosted review console, per-field optimization, authentication, and production workflow integration are planned—not implemented.
 
 ## Quick start
 
@@ -50,7 +51,8 @@ flowchart TD
     C --> D[Review queue]
     D --> E[Capacity and SLA simulation]
     E --> F[Correlated-field check]
-    F --> G[Decision report]
+    F --> G[Delayed-label audit]
+    G --> H[Decision report]
 ```
 
 ## P1 experiment
@@ -71,6 +73,20 @@ zero false-positive document flags, and no more than three added field reviews
 per additional caught error. The report preserves both the benefit and the
 workload denominator; it does not treat more routing as free.
 
+## Delayed-label experiment
+
+The frozen 180-decision fixture assigns every row a stable `item:field` ID and
+an immutable correction delay. Routine QA reveals 26 correct decisions after
+one day but none of the 81 errors. Selecting a threshold from that visible set
+chooses 0.45 instead of the eventual 0.85 optimum and incurs $1,485 of
+full-truth regret. By day seven, 107/180 labels and all 81 errors are visible;
+the selected threshold matches the oracle and regret falls to zero. Day 14
+provides the complete 180/180 control.
+
+These are deliberately selective synthetic delays, not an estimate of real
+error discovery. The audit demonstrates how to expose label-window risk and
+fail closed when no labels are available; it does not correct selection bias.
+
 ## Design choices
 
 - A global threshold is shipped first because it is easier to explain; per-field thresholds remain planned.
@@ -79,13 +95,14 @@ workload denominator; it does not treat more routing as free.
 - Capacity is evaluated under surge conditions rather than average demand.
 - Synthetic fixtures make the workflow reproducible but prevent claims about real extraction accuracy.
 - Arithmetic consistency is a deterministic signal, not proof of which field is wrong; the whole group stays in human review.
+- Partial-label economics are always evaluated against eventual fixture truth so missing corrections cannot be reported as safety.
 
 See [the method and limitations](docs/METHOD.md), [synthetic-data provenance](data/README.md), and [the rigorous feature backlog](docs/BACKLOG.md).
 
 ## Repository structure
 
 ```text
-queuecal/         calibration, economics, queue simulation, reporting
+queuecal/         calibration, economics, queue simulation, delayed-label audit, reporting
 tests/            deterministic unit and experiment tests
 data/             synthetic-data provenance
 docs/             methods, limitations, and evidence-driven backlog

@@ -17,3 +17,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install -e .
       - run: python -m unittest discover -s tests -v
+      - run: |
+          queuecal --json queuecal-report.json --markdown queuecal-report.md
+          python -c "import json; r=json.load(open('queuecal-report.json')); d=r['delayed_label_audit']; assert d['day_1']['errors_observed'] == 0; assert d['day_1']['threshold_regret'] > 0; assert d['day_7']['error_observation_rate'] == 1.0; assert d['day_14']['threshold_regret'] == 0"
+
